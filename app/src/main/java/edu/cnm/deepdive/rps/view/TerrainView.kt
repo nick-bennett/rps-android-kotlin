@@ -13,220 +13,209 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-package edu.cnm.deepdive.rps.view;
+package edu.cnm.deepdive.rps.view
 
-import android.content.Context;
-import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Rect;
-import android.util.AttributeSet;
-import android.view.View;
-import edu.cnm.deepdive.rps.model.Arena;
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Rect
+import android.util.AttributeSet
+import android.view.View
+import edu.cnm.deepdive.rps.model.Arena
 
 /**
- * {@link View} subclass that renders the cells on the terrain of an {@link Arena}, using a scaled
+ * [View] subclass that renders the cells on the terrain of an [Arena], using a scaled
  * one-pixel-per-cell scheme.
  *
  * @author Nicholas Bennett
  */
-public class TerrainView extends View {
+class TerrainView : View {
 
-  private static final float MAX_HUE = 360;
-  private static final float SATURATION = 1;
-  private static final float BRIGHTNESS = 0.85f;
-  private static final long ACTIVE_SLEEP_INTERVAL = 10;
-  private static final long INACTIVE_SLEEP_INTERVAL = 100;
+    private val source = Rect()
+    private val dest = Rect()
+    private var bitmap: Bitmap? = null
+    private var arena: Arena? = null
+    private var terrain: Array<ByteArray>? = null;
+    private var breedColors: IntArray? = null;
+    private var updater: Updater? = null
 
-  private final Rect source = new Rect();
-  private final Rect dest = new Rect();
+    /**
+     * Initializes by chaining to [View.View].
+     */
+    constructor(context: Context?) : super(context) {}
 
-  private Bitmap bitmap;
-  private Arena arena;
-  private byte[][] terrain;
-  private int[] breedColors;
-  private Updater updater;
+    /**
+     * Initializes by chaining to [View.View].
+     */
+    constructor(context: Context?, attrs: AttributeSet?) : super(context, attrs) {}
 
-  {
-    setWillNotDraw(false);
-  }
+    /**
+     * Initializes by chaining to [View.View].
+     */
+    constructor(context: Context?, attrs: AttributeSet?, defStyleAttr: Int) : super(context, attrs, defStyleAttr) {}
 
-  /**
-   * Initializes by chaining to {@link View#View(Context)}.
-   */
-  public TerrainView(Context context) {
-    super(context);
-  }
+    /**
+     * Initializes by chaining to [View.View].
+     */
+    constructor(context: Context?, attrs: AttributeSet?, defStyleAttr: Int, defStyleRes: Int) : super(context, attrs, defStyleAttr, defStyleRes) {}
 
-  /**
-   * Initializes by chaining to {@link View#View(Context, AttributeSet)}.
-   */
-  public TerrainView(Context context, AttributeSet attrs) {
-    super(context, attrs);
-  }
-
-  /**
-   * Initializes by chaining to {@link View#View(Context, AttributeSet, int)}.
-   */
-  public TerrainView(Context context, AttributeSet attrs, int defStyleAttr) {
-    super(context, attrs, defStyleAttr);
-  }
-
-  /**
-   * Initializes by chaining to {@link View#View(Context, AttributeSet, int, int)}.
-   */
-  public TerrainView(Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes) {
-    super(context, attrs, defStyleAttr, defStyleRes);
-  }
-
-  /**
-   * Returns dimensions based on the larger of this view's suggested height and width, so that the
-   * content is square. For this to be the appropriate choice, this view should be contained within
-   * a {@link android.widget.ScrollView}, with its width set to {@code match_parent} and its height
-   * set to {@code wrap_content}; or within a {@link android.widget.HorizontalScrollView}, with its
-   * width set to {@code wrap_content} and its height set to {@code match_parent}.
-   *
-   * @param widthMeasureSpec specification control value.
-   * @param heightMeasureSpec specification control value.
-   */
-  @Override
-  protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-    int width = getSuggestedMinimumWidth();
-    int height = getSuggestedMinimumHeight();
-    width = resolveSizeAndState(getPaddingLeft() + getPaddingRight() + width, widthMeasureSpec, 0);
-    height = resolveSizeAndState(getPaddingTop() + getPaddingBottom() + height, heightMeasureSpec, 0);
-    int size = Math.max(width, height);
-    setMeasuredDimension(size, size);
-  }
-
-  /**
-   * Performs layout on all child elements (none), and creates a {@link Bitmap} to fit the specified
-   * dimensions.
-   */
-  @Override
-  protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
-    super.onLayout(changed, left, top, right, bottom);
-    updateBitmap();
-  }
-
-  /**
-   * Renders the contents of the {@link Arena Arena's} terrain.
-   *
-   * @param canvas rendering target.
-   */
-  @Override
-  protected void onDraw(Canvas canvas) {
-    if (bitmap != null) {
-      dest.set(0, 0, getWidth(), getHeight());
-      canvas.drawBitmap(bitmap, source, dest, null);
+    /**
+     * Returns dimensions based on the larger of this view's suggested height and width, so that the
+     * content is square. For this to be the appropriate choice, this view should be contained within
+     * a [android.widget.ScrollView], with its width set to `match_parent` and its height
+     * set to `wrap_content`; or within a [android.widget.HorizontalScrollView], with its
+     * width set to `wrap_content` and its height set to `match_parent`.
+     *
+     * @param widthMeasureSpec specification control value.
+     * @param heightMeasureSpec specification control value.
+     */
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        var width = suggestedMinimumWidth
+        var height = suggestedMinimumHeight
+        width = resolveSizeAndState(paddingLeft + paddingRight + width, widthMeasureSpec, 0)
+        height = resolveSizeAndState(paddingTop + paddingBottom + height, heightMeasureSpec, 0)
+        val size = Math.max(width, height)
+        setMeasuredDimension(size, size)
     }
-  }
 
-  @Override
-  protected void onAttachedToWindow() {
-    super.onAttachedToWindow();
-    stopUpdater();
-    updater = new Updater();
-    updater.start();
-  }
-
-  @Override
-  protected void onDetachedFromWindow() {
-    super.onDetachedFromWindow();
-    stopUpdater();
-  }
-
-  /**
-   * Specifices the {@link Arena} instance to be rendered by this view. In general, this will most
-   * simply be invoked via data binding in the layout XML.
-   *
-   * @param arena instance to render.
-   */
-  public void setArena(Arena arena) {
-    this.arena = arena;
-    if (arena != null) {
-      int numBreeds = arena.getNumBreeds();
-      int size = arena.getArenaSize();
-      terrain = new byte[size][size];
-      bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565);
-      source.set(0, 0, size, size);
-      float[] hsv = {0, SATURATION, BRIGHTNESS};
-      float hueInterval = MAX_HUE / numBreeds;
-      breedColors = new int[numBreeds];
-      for (int i = 0; i < numBreeds; i++) {
-        breedColors[i] = Color.HSVToColor(hsv);
-        hsv[0] += hueInterval;
-      }
-    } else {
-      bitmap = null;
+    /**
+     * Performs layout on all child elements (none), and creates a [Bitmap] to fit the specified
+     * dimensions.
+     */
+    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+        super.onLayout(changed, left, top, right, bottom)
+        updateBitmap()
     }
-  }
 
-  /**
-   * Updates the current generation count, triggering a display refresh. Without invoking this
-   * method, the cell terrain rendering will not be updated; however, if data binding is used in the
-   * layout XML, this can happen automatically.
-   *
-   * @param generation number of generations (iterations) completed in the {@link Arena} simulation.
-   */
-  public void setGeneration(long generation) {
-    if (updater != null) {
-      updater.setGeneration(generation);
-    }
-  }
-
-  private void updateBitmap() {
-    if (bitmap != null) {
-      arena.copyTerrain(terrain);
-      for (int row = 0; row < terrain.length; row++) {
-        for (int col = 0; col < terrain[row].length; col++) {
-          bitmap.setPixel(col, row, breedColors[terrain[row][col]]);
+    /**
+     * Renders the contents of the [Arena&#39;s][Arena] terrain.
+     *
+     * @param canvas rendering target.
+     */
+    override fun onDraw(canvas: Canvas) {
+        bitmap?.let { bits ->
+            dest[0, 0, width] = height
+            canvas.drawBitmap(bits, source, dest, null)
         }
-      }
-    }
-  }
-
-  private void stopUpdater() {
-    if (updater != null) {
-      updater.setRunning(false);
-      updater = null;
-    }
-  }
-
-  private class Updater extends Thread {
-
-    private volatile boolean running = true;
-    private volatile long generation = 0;
-
-    public void setRunning(boolean running) {
-      this.running = running;
     }
 
-    public void setGeneration(long generation) {
-      this.generation = generation;
-    }
-
-    @Override
-    public void run() {
-      long generation = 0;
-      while (running) {
-        long sleepInterval = INACTIVE_SLEEP_INTERVAL;
-        if (this.generation == 0 || this.generation > generation) {
-          generation = this.generation;
-          updateBitmap();
-          if (generation == 0) {
-            postInvalidate();
-          }
-          sleepInterval = ACTIVE_SLEEP_INTERVAL;
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        stopUpdater()
+        updater = Updater().apply {
+            start()
         }
-        try {
-          sleep(sleepInterval);
-        } catch (InterruptedException expected) {
-          // Ignore innocuous exception.
-        }
-      }
     }
 
-  }
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        stopUpdater()
+    }
 
+    /**
+     * Specifices the [Arena] instance to be rendered by this view. In general, this will most
+     * simply be invoked via data binding in the layout XML.
+     *
+     * @param arena instance to render.
+     */
+    fun setArena(arena: Arena?) {
+        this.arena = arena
+        bitmap = null
+        arena?.let {
+            val numBreeds = it.numBreeds
+            val size = it.arenaSize
+            terrain = Array(size) { ByteArray(size) }
+            bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565)
+            source[0, 0, size] = size
+            val hsv = floatArrayOf(0f, SATURATION, BRIGHTNESS)
+            val hueInterval = MAX_HUE / numBreeds
+            breedColors = IntArray(numBreeds.toInt()).also { colors ->
+                for (i in colors.indices) {
+                    colors[i] = Color.HSVToColor(hsv)
+                    hsv[0] += hueInterval
+                }
+            }
+        }
+    }
+
+    /**
+     * Updates the current generation count, triggering a display refresh. Without invoking this
+     * method, the cell terrain rendering will not be updated; however, if data binding is used in the
+     * layout XML, this can happen automatically.
+     *
+     * @param generation number of generations (iterations) completed in the [Arena] simulation.
+     */
+    fun setGeneration(generation: Long) {
+        updater?.setGeneration(generation)
+    }
+
+    private fun updateBitmap() {
+        bitmap?.let { bits ->
+            arena?.copyTerrain(terrain)
+            terrain?.let { terr ->
+                breedColors?.let { colors ->
+                    for (row in terr.indices) {
+                        for (col in terr[row].indices) {
+                            bits.setPixel(col, row, colors[terr[row][col].toInt()])
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun stopUpdater() {
+        if (updater != null) {
+            updater!!.setRunning(false)
+            updater = null
+        }
+    }
+
+    private inner class Updater : Thread() {
+        @Volatile
+        private var running = true
+
+        @Volatile
+        private var generation: Long = 0
+        fun setRunning(running: Boolean) {
+            this.running = running
+        }
+
+        fun setGeneration(generation: Long) {
+            this.generation = generation
+        }
+
+        override fun run() {
+            var generation: Long = 0
+            while (running) {
+                var sleepInterval = INACTIVE_SLEEP_INTERVAL
+                if (this.generation == 0L || this.generation > generation) {
+                    generation = this.generation
+                    updateBitmap()
+                    if (generation == 0L) {
+                        postInvalidate()
+                    }
+                    sleepInterval = ACTIVE_SLEEP_INTERVAL
+                }
+                try {
+                    sleep(sleepInterval)
+                } catch (expected: InterruptedException) {
+                    // Ignore innocuous exception.
+                }
+            }
+        }
+    }
+
+    companion object {
+        private const val MAX_HUE = 360f
+        private const val SATURATION = 1f
+        private const val BRIGHTNESS = 0.85f
+        private const val ACTIVE_SLEEP_INTERVAL: Long = 10
+        private const val INACTIVE_SLEEP_INTERVAL: Long = 100
+    }
+
+    init {
+        setWillNotDraw(false)
+    }
 }
