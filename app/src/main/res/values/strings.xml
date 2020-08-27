@@ -1,0 +1,7 @@
+<resources>
+  <string name="app_name">RPS Ecosystem</string>
+  <string name="run">Run</string>
+  <string name="pause">Pause</string>
+  <string name="reset">Reset</string>
+  <string name="generation_format">Generation: %,d</string>
+</resources>
